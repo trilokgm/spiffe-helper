@@ -1,4 +1,4 @@
-package main
+package helper
 
 import (
 	"context"
@@ -13,6 +13,7 @@ import (
 	"sync"
 	"testing"
 	"time"
+	"spiffe-helper/cmd/config"
 )
 
 //Creates a Sidecar with a Mocked WorkloadAPIClient and tests that
@@ -27,7 +28,7 @@ func TestSidecar_RunDaemon(t *testing.T) {
 
 	defer os.RemoveAll(tmpdir)
 
-	config := &SidecarConfig{
+	config := &config.SidecarConfig{
 		Cmd:                "echo",
 		CertDir:            tmpdir,
 		SvidFileName:       "svid.pem",
@@ -81,7 +82,7 @@ func TestSidecar_RunDaemon(t *testing.T) {
 //Tests that when there is no defaultTimeout in the config, it uses
 //the default defaultTimeout set in a constant in the spiffe_helper
 func Test_getTimeout_default(t *testing.T) {
-	config := &SidecarConfig{}
+	config := &config.SidecarConfig{}
 
 	expectedTimeout := defaultTimeout
 	actualTimeout, err := getTimeout(config)
@@ -94,7 +95,7 @@ func Test_getTimeout_default(t *testing.T) {
 
 //Tests that when there is a timeout set in the config, it's used that one
 func Test_getTimeout_custom(t *testing.T) {
-	config := &SidecarConfig{
+	config := &config.SidecarConfig{
 		Timeout: "10s",
 	}
 
@@ -108,7 +109,7 @@ func Test_getTimeout_custom(t *testing.T) {
 }
 
 func Test_getTimeout_return_error_when_parsing_fails(t *testing.T) {
-	config := &SidecarConfig{
+	config := &config.SidecarConfig{
 		Timeout: "invalid",
 	}
 

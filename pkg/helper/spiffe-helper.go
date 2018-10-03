@@ -1,4 +1,4 @@
-package main
+package helper
 
 import (
 	"context"
@@ -18,12 +18,13 @@ import (
 	"syscall"
 	"time"
 	"sync/atomic"
+	"spiffe-helper/cmd/config"
 )
 
 // sidecar is the component that consumes the Workload API and renews certs
 // implements the interface Sidecar
 type sidecar struct {
-	config            *SidecarConfig
+	config            *config.SidecarConfig
 	processRunning    int32
 	process           *os.Process
 	workloadAPIClient workload.X509Client
@@ -39,7 +40,7 @@ const (
 )
 
 // NewSidecar creates a new sidecar
-func NewSidecar(config *SidecarConfig) (*sidecar, error) {
+func NewSidecar(config *config.SidecarConfig) (*sidecar, error) {
 	timeout, err := getTimeout(config)
 	if err != nil {
 		return nil, err
@@ -213,7 +214,7 @@ func (s *sidecar) writeKey(file string, data []byte) error {
 // if there's an error during parsing, maybe because
 // it's not well defined or not defined at all in the
 // config, returns the defaultTimeout constant
-func getTimeout(config *SidecarConfig) (time.Duration, error) {
+func getTimeout(config *config.SidecarConfig) (time.Duration, error) {
 	if config.Timeout == "" {
 		return defaultTimeout, nil
 	}

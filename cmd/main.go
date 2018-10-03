@@ -4,6 +4,8 @@ import (
 	"context"
 	"flag"
 	"github.com/apex/log"
+	"spiffe-helper/cmd/config"
+	"spiffe-helper/pkg/helper"
 )
 
 func main() {
@@ -14,7 +16,7 @@ func main() {
 	configFile := flag.String("config", "helper.conf", "<configFile> Configuration file path")
 	flag.Parse()
 
-	config, err := ParseConfig(*configFile)
+	config, err := config.ParseConfig(*configFile)
 	if err != nil {
 		log.Fatalf("error parsing configuration file: %v\n%v", *configFile, err)
 	}
@@ -26,7 +28,7 @@ func main() {
 
 	log.Infof("Using configuration file: %v\n", *configFile)
 
-	sidecar, err := NewSidecar(config)
+	sidecar, err := helper.NewSidecar(config)
 	if err != nil {
 		panic(err)
 	}
