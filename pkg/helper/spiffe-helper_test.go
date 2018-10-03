@@ -10,10 +10,10 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
+	"spiffe-helper/cmd/config"
 	"sync"
 	"testing"
 	"time"
-	"spiffe-helper/cmd/config"
 )
 
 //Creates a Sidecar with a Mocked WorkloadAPIClient and tests that
@@ -43,7 +43,7 @@ func TestSidecar_RunDaemon(t *testing.T) {
 
 	sidecar := sidecar{
 		config:            config,
-		workloadAPIClient: workloadClient,
+		WorkloadAPIClient: workloadClient,
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())

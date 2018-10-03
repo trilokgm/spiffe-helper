@@ -4,8 +4,8 @@ import (
 	"context"
 	"flag"
 	"github.com/apex/log"
+	"spiffe-helper/cmd/app"
 	"spiffe-helper/cmd/config"
-	"spiffe-helper/pkg/helper"
 )
 
 func main() {
@@ -16,19 +16,19 @@ func main() {
 	configFile := flag.String("config", "helper.conf", "<configFile> Configuration file path")
 	flag.Parse()
 
-	config, err := config.ParseConfig(*configFile)
+	cfg, err := config.ParseConfig(*configFile)
 	if err != nil {
 		log.Fatalf("error parsing configuration file: %v\n%v", *configFile, err)
 	}
 
-	log.Infof("Sidecar is up! Will use agent at %s\n\n", config.AgentAddress)
-	if config.Cmd == "" {
+	log.Infof("Sidecar is up! Will use agent at %s\n\n", cfg.AgentAddress)
+	if cfg.Cmd == "" {
 		log.Warn("Warning: no cmd defined to execute.\n")
 	}
 
 	log.Infof("Using configuration file: %v\n", *configFile)
 
-	sidecar, err := helper.NewSidecar(config)
+	sidecar, err := app.NewSidecar(cfg)
 	if err != nil {
 		panic(err)
 	}

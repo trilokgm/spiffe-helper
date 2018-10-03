@@ -9,70 +9,51 @@ import (
 	"github.com/spiffe/spire/api/workload"
 	proto "github.com/spiffe/spire/proto/api/workload"
 	"io/ioutil"
-	"net"
 	"os"
 	"os/exec"
 	"os/signal"
 	"path"
-	"strings"
-	"syscall"
-	"time"
-	"sync/atomic"
 	"spiffe-helper/cmd/config"
+	"strings"
+	"sync/atomic"
+	"syscall"
 )
 
 // sidecar is the component that consumes the Workload API and renews certs
 // implements the interface Sidecar
-type sidecar struct {
-	config            *config.SidecarConfig
-	processRunning    int32
-	process           *os.Process
-	workloadAPIClient workload.X509Client
+type Sidecar struct {
+	Config            *config.SidecarConfig
+	ProcessRunning    int32
+	Process           *os.Process
+	WorkloadAPIClient workload.X509Client
 }
 
 const (
-	// default timeout Duration for the workloadAPI client when the defaultTimeout
-	// is not configured in the .conf file
-	defaultTimeout = time.Duration(5 * time.Second)
-
 	certsFileMode = os.FileMode(0644)
-	keyFileMode = os.FileMode(0600)
+	keyFileMode   = os.FileMode(0600)
 )
-
-// NewSidecar creates a new sidecar
-func NewSidecar(config *config.SidecarConfig) (*sidecar, error) {
-	timeout, err := getTimeout(config)
-	if err != nil {
-		return nil, err
-	}
-
-	return &sidecar{
-		config:            config,
-		workloadAPIClient: newWorkloadAPIClient(config.AgentAddress, timeout),
-	}, nil
-}
 
 // RunDaemon starts the main loop
 // Starts the workload API client to listen for new SVID updates
 // When a new SVID is received on the updateChan, the SVID certificates
 // are stored in disk and a restart signal is sent to the proxy's process
-func (s *sidecar) RunDaemon(ctx context.Context) error {
+func (s *Sidecar) RunDaemon(ctx context.Context) error {
 	// Create channel for interrupt signal
 	interrupt := make(chan os.Signal, 1)
 	errorChan := make(chan error, 1)
 	signal.Notify(interrupt, syscall.SIGINT, syscall.SIGTERM)
 
-	updateChan := s.workloadAPIClient.UpdateChan()
+	updateChan := s.WorkloadAPIClient.UpdateChan()
 
-	//start the workloadAPIClient
+	//start the WorkloadAPIClient
 	go func() {
-		err := s.workloadAPIClient.Start()
+		err := s.WorkloadAPIClient.Start()
 		if err != nil {
 			log.Error(err.Error())
 			errorChan <- err
 		}
 	}()
-	defer s.workloadAPIClient.Stop()
+	defer s.WorkloadAPIClient.Stop()
 
 	for {
 		select {
@@ -89,7 +70,7 @@ func (s *sidecar) RunDaemon(ctx context.Context) error {
 }
 
 // Updates the certificates stored in disk and signal the Process to restart
-func updateCertificates(s *sidecar, svidResponse *proto.X509SVIDResponse) {
+func updateCertificates(s *Sidecar, svidResponse *proto.X509SVIDResponse) {
 	err := s.dumpBundles(svidResponse)
 	if err != nil {
 		log.Error(err.Error())
@@ -101,40 +82,27 @@ func updateCertificates(s *sidecar, svidResponse *proto.X509SVIDResponse) {
 	}
 }
 
-//newWorkloadAPIClient creates a workload.X509Client
-func newWorkloadAPIClient(agentAddress string, timeout time.Duration) workload.X509Client {
-	addr := &net.UnixAddr{
-		Net:  "unix",
-		Name: agentAddress,
-	}
-	config := &workload.X509ClientConfig{
-		Addr:    addr,
-		Timeout: timeout,
-	}
-	return workload.NewX509Client(config)
-}
-
 //signalProcess sends the configured Renew signal to the process running the proxy
 //to reload itself so that the proxy uses the new SVID
-func (s *sidecar) signalProcess() (err error) {
-	if atomic.LoadInt32(&s.processRunning) == 0 {
-		cmd := exec.Command(s.config.Cmd, strings.Split(s.config.CmdArgs, " ")...)
+func (s *Sidecar) signalProcess() (err error) {
+	if atomic.LoadInt32(&s.ProcessRunning) == 0 {
+		cmd := exec.Command(s.Config.Cmd, strings.Split(s.Config.CmdArgs, " ")...)
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 		err = cmd.Start()
 		if err != nil {
-			return fmt.Errorf("error executing process: %v\n%v", s.config.Cmd, err)
+			return fmt.Errorf("error executing process: %v\n%v", s.Config.Cmd, err)
 		}
-		s.process = cmd.Process
+		s.Process = cmd.Process
 		go s.checkProcessExit()
 	} else {
 		// Signal to reload certs
-		sig, err := getSignal(s.config.RenewSignal)
+		sig, err := getSignal(s.Config.RenewSignal)
 		if err != nil {
-			return fmt.Errorf("error getting signal: %v\n%v", s.config.RenewSignal, err)
+			return fmt.Errorf("error getting signal: %v\n%v", s.Config.RenewSignal, err)
 		}
 
-		err = s.process.Signal(sig)
+		err = s.Process.Signal(sig)
 		if err != nil {
 			return fmt.Errorf("error signaling process with signal: %v\n%v", sig, err)
 		}
@@ -143,23 +111,23 @@ func (s *sidecar) signalProcess() (err error) {
 	return nil
 }
 
-func (s *sidecar) checkProcessExit() {
-	atomic.StoreInt32(&s.processRunning, 1)
-	s.process.Wait()
-	atomic.StoreInt32(&s.processRunning, 0)
+func (s *Sidecar) checkProcessExit() {
+	atomic.StoreInt32(&s.ProcessRunning, 1)
+	s.Process.Wait()
+	atomic.StoreInt32(&s.ProcessRunning, 0)
 }
 
 //dumpBundles takes a X509SVIDResponse, representing a svid message from
 //the Workload API, and calls writeCerts and writeKey to write to disk
 //the svid, key and bundle of certificates
-func (s *sidecar) dumpBundles(svidResponse *proto.X509SVIDResponse) error {
+func (s *Sidecar) dumpBundles(svidResponse *proto.X509SVIDResponse) error {
 
 	// There may be more than one certificate, but we are interested in the first one only
 	svid := svidResponse.Svids[0]
 
-	svidFile := path.Join(s.config.CertDir, s.config.SvidFileName)
-	svidKeyFile := path.Join(s.config.CertDir, s.config.SvidKeyFileName)
-	svidBundleFile := path.Join(s.config.CertDir, s.config.SvidBundleFileName)
+	svidFile := path.Join(s.Config.CertDir, s.Config.SvidFileName)
+	svidKeyFile := path.Join(s.Config.CertDir, s.Config.SvidKeyFileName)
+	svidBundleFile := path.Join(s.Config.CertDir, s.Config.SvidBundleFileName)
 
 	err := s.writeCerts(svidFile, svid.X509Svid)
 	if err != nil {
@@ -181,7 +149,7 @@ func (s *sidecar) dumpBundles(svidResponse *proto.X509SVIDResponse) error {
 
 // writeCerts takes a slice of bytes, which may contain multiple certificates,
 // and encodes them as PEM blocks, writing them to file
-func (s *sidecar) writeCerts(file string, data []byte) error {
+func (s *Sidecar) writeCerts(file string, data []byte) error {
 	certs, err := x509.ParseCertificates(data)
 	if err != nil {
 		return err
@@ -201,29 +169,13 @@ func (s *sidecar) writeCerts(file string, data []byte) error {
 
 // writeKey takes a private key as a slice of bytes,
 // formats as PEM, and writes it to file
-func (s *sidecar) writeKey(file string, data []byte) error {
+func (s *Sidecar) writeKey(file string, data []byte) error {
 	b := &pem.Block{
 		Type:  "EC PRIVATE KEY",
 		Bytes: data,
 	}
 
 	return ioutil.WriteFile(file, pem.EncodeToMemory(b), keyFileMode)
-}
-
-// parses a time.Duration from the the SidecarConfig,
-// if there's an error during parsing, maybe because
-// it's not well defined or not defined at all in the
-// config, returns the defaultTimeout constant
-func getTimeout(config *config.SidecarConfig) (time.Duration, error) {
-	if config.Timeout == "" {
-		return defaultTimeout, nil
-	}
-
-	t, err := time.ParseDuration(config.Timeout)
-	if err != nil {
-		return 0, err
-	}
-	return t, nil
 }
 
 func getSignal(s string) (sig syscall.Signal, err error) {
