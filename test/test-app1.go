@@ -16,13 +16,14 @@ func main() {
 		SvidBundleFileName: "svid_bundle.pem",
 		SvidKeyFileName: "svid.key",
 	}
-	sidecar, err := app.NewSidecar(&config)
+	happ := app.HelperApp{}
+	sidecar, err := happ.NewSidecar(&config)
 	if err != nil {
 		fmt.Printf("failed to create new sidecar [%s] \n,Exiting ...",err.Error())
 		return
 	}
-	ctx := app.NewContext()
-	err = app.Start(ctx, sidecar)
+	ctx := happ.NewContext()
+	err = happ.Start(ctx, sidecar)
 	if err != nil {
 		fmt.Printf("failed to start helper [%s] \n",err.Error())
 	} else {

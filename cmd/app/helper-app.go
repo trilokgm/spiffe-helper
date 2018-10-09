@@ -15,8 +15,11 @@ const (
 	defaultTimeout = time.Duration(5 * time.Second)
 )
 
+type HelperApp struct {
+
+}
 // NewSidecar creates a new sidecar
-func NewSidecar(config *config.SidecarConfig) (*helper.Sidecar, error) {
+func (h *HelperApp) NewSidecar(config *config.SidecarConfig) (*helper.Sidecar, error) {
 	timeout, err := getTimeout(config)
 	if err != nil {
 		return nil, err
@@ -28,11 +31,11 @@ func NewSidecar(config *config.SidecarConfig) (*helper.Sidecar, error) {
 	}, nil
 }
 
-func NewContext() context.Context {
+func (h *HelperApp) NewContext() context.Context {
 	return context.Background()
 }
 
-func Start(ctx context.Context, helper *helper.Sidecar) error {
+func (h *HelperApp) Start(ctx context.Context, helper *helper.Sidecar) error {
 	return helper.RunDaemon(ctx)
 }
 
